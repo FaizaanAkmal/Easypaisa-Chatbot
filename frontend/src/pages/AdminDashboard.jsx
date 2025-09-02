@@ -106,6 +106,8 @@ export default function AdminDashboard() {
   const [uploadMessage, setUploadMessage] = useState("");
   const [uploading, setUploading] = useState(false);
 
+  const user = location.state?.email || 'guest';
+
   const handleAddUser = async () => {
     try {
       const res = await fetch("http://localhost:8000/api/user/register", {
@@ -146,8 +148,8 @@ export default function AdminDashboard() {
       formData.append("docId", "949772ac-b6d4-4898-acd3-a8f0735c8eca"); // unique ID
       formData.append("loaderName", "File Loader");
       formData.append("splitter", JSON.stringify({ config: { chunkSize: 1000 } }));
-      formData.append("metadata", JSON.stringify({ uploadedBy: "admin", filename: file.name }));
-      formData.append("replaceExisting", "true");
+      formData.append("metadata", JSON.stringify({ uploadedBy: user, filename: file.name }));
+      formData.append("replaceExisting", "false");
       formData.append("createNewDocStore", "false");
 
       const res = await fetch(
