@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 export default function Login() {
-  const [role, setRole] = useState("user");
+  //const [role, setRole] = useState("user");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -10,14 +10,14 @@ export default function Login() {
 
   const handleSignIn = async () => {
     try {
-      const res = await fetch("http://localhost:8000/api/login", {
+      const res = await fetch("http://localhost:8000/api/user/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, email, password }),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await res.json();
-
+      
       if (data.success) {
         setError("");
         navigate(`/${data.role}`, { state: { email: data.email } });
@@ -34,14 +34,14 @@ export default function Login() {
       <div className="bg-white p-8 rounded-2xl shadow-md w-96">
         <h1 className="text-2xl font-bold text-center mb-6">Login</h1>
 
-        <select
+        {/*<select
           value={role}
           onChange={(e) => setRole(e.target.value)}
           className="block w-full mb-4 p-2 border rounded-lg"
         >
           <option value="user">User</option>
           <option value="admin">Admin</option>
-        </select>
+        </select>*/}
 
         <input
           type="email"
