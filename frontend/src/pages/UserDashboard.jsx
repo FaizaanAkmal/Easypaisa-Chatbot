@@ -11,92 +11,152 @@ const FlowiseChatWithAPI = () => {
     const [messages, setMessages] = useState({});
     const [inputValue, setInputValue] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isLoadingChats, setIsLoadingChats] = useState(true);
     const messagesEndRef = useRef(null);
 
     const email = location.state?.email || 'guest';
 
+    // Configuration
     const CHATFLOW_ID = "503ac61c-f2de-4964-9a7b-d485ae6d574b";
-    const API_HOST = "http://localhost:3000";
+    const FLOWISE_API_HOST = "http://localhost:3000";
+    const BACKEND_API_HOST = "http://localhost:8000"; // Your backend server
 
-    const handleSignOut = () => {
-        // Clear saved chats/messages if needed
-        //localStorage.removeItem(storageKeys.chats);
-        //localStorage.removeItem(storageKeys.messages);
-
-        // Redirect to login page
+    const handleSignOut = async () => {
+        try {
+            // Save current state before signing out
+            await saveToBackend(chats, messages);
+        } catch (error) {
+            console.error('Error saving before sign out:', error);
+        }
         navigate("/");
     };
 
-    // 🔑 Use per-user storage keys
-    const storageKeys = {
-        chats: `flowise-chats-${email}`,
-        messages: `flowise-messages-${email}`
+    // Backend API functions
+    const saveToBackend = async (chatsData, messagesData) => {
+        try {
+            const response = await fetch(`${BACKEND_API_HOST}/api/chats/bulk-save`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    userEmail: email,
+                    chats: chatsData,
+                    messages: messagesData
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to save: ${response.status}`);
+            }
+
+            const result = await response.json();
+            console.log('✅ Data saved to backend:', result);
+        } catch (error) {
+            console.error('❌ Error saving to backend:', error);
+            // Fallback to localStorage if backend fails
+            localStorage.setItem(`flowise-chats-${email}`, JSON.stringify(chatsData));
+            localStorage.setItem(`flowise-messages-${email}`, JSON.stringify(messagesData));
+        }
     };
 
-    // Persistence functions - replace with your preferred storage method
-    const saveToStorage = (chats, messages) => {
-        // Option 1: Save to your backend API
-        // fetch('/api/save-chats', {
-        //     method: 'POST',
-        //     headers: { 'Content-Type': 'application/json' },
-        //     body: JSON.stringify({ chats, messages })
-        // });
+    const loadFromBackend = async () => {
+        try {
+            const response = await fetch(`${BACKEND_API_HOST}/api/chats/${encodeURIComponent(email)}`);
+            
+            if (!response.ok) {
+                throw new Error(`Failed to load: ${response.status}`);
+            }
 
-        // Option 2: Use localStorage (uncomment when using in your environment)
-        localStorage.setItem(storageKeys.chats, JSON.stringify(chats));
-        localStorage.setItem(storageKeys.messages, JSON.stringify(messages));
-        
-        console.log('Chat data ready to save:', { chats, messages });
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('❌ Error loading from backend:', error);
+            // Fallback to localStorage if backend fails
+            const savedChats = localStorage.getItem(`flowise-chats-${email}`);
+            const savedMessages = localStorage.getItem(`flowise-messages-${email}`);
+            return {
+                chats: savedChats ? JSON.parse(savedChats) : [],
+                messages: savedMessages ? JSON.parse(savedMessages) : {}
+            };
+        }
     };
 
-    const loadFromStorage = () => {
-        // Option 1: Load from your backend API
-        // const response = await fetch('/api/get-chats');
-        // const data = await response.json();
-        // return data;
-
-        // Option 2: Use localStorage (uncomment when using in your environment)
-        const savedChats = localStorage.getItem(storageKeys.chats);
-        const savedMessages = localStorage.getItem(storageKeys.messages);
-        return {
-            chats: savedChats ? JSON.parse(savedChats) : [],
-            messages: savedMessages ? JSON.parse(savedMessages) : {}
-        };
-
-        // For now, return empty data
-        return { chats: [], messages: {} };
+    const saveSingleChat = async (chatData) => {
+        try {
+            await fetch(`${BACKEND_API_HOST}/api/chats`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    userEmail: email,
+                    chatData: chatData
+                })
+            });
+        } catch (error) {
+            console.error('Error saving single chat:', error);
+        }
     };
 
-    // Initialize with first chat on component mount
+    const addMessageToBackend = async (chatId, messageData) => {
+        try {
+            await fetch(`${BACKEND_API_HOST}/api/chats/${encodeURIComponent(email)}/${chatId}/messages`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    messageData: messageData
+                })
+            });
+        } catch (error) {
+            console.error('Error adding message to backend:', error);
+        }
+    };
+
+    const deleteChatFromBackend = async (chatId) => {
+        try {
+            await fetch(`${BACKEND_API_HOST}/api/chats/${encodeURIComponent(email)}/${chatId}`, {
+                method: 'DELETE'
+            });
+        } catch (error) {
+            console.error('Error deleting chat from backend:', error);
+        }
+    };
+
+    // Initialize data on component mount
     useEffect(() => {
         const loadData = async () => {
-            const { chats: savedChats, messages: savedMessages } = loadFromStorage();
-            
-            if (savedChats.length > 0) {
-                setChats(savedChats);
-                setMessages(savedMessages);
-                setActiveChat(savedChats[0].id);
-            } //else {
-                //createNewChat();
-            //}
+            setIsLoadingChats(true);
+            try {
+                const { chats: savedChats, messages: savedMessages } = await loadFromBackend();
+                
+                if (savedChats.length > 0) {
+                    setChats(savedChats);
+                    setMessages(savedMessages);
+                    setActiveChat(savedChats[0].id);
+                }
+            } catch (error) {
+                console.error('Error loading data:', error);
+            } finally {
+                setIsLoadingChats(false);
+            }
         };
         
         loadData();
-    }, []);
+    }, [email]);
 
-    // Save data whenever chats or messages change
+    // Auto-save periodically (every 30 seconds)
     useEffect(() => {
-        if (chats.length > 0) {
-            saveToStorage(chats, messages);
-        }
-    }, [chats, messages]);
+        const interval = setInterval(() => {
+            if (chats.length > 0) {
+                saveToBackend(chats, messages);
+            }
+        }, 30000);
 
-    // Initialize with first chat on component mount
-    /*useEffect(() => {
-        if (chats.length === 0) {
-            createNewChat();
-        }
-    }, []);*/
+        return () => clearInterval(interval);
+    }, [chats, messages, email]);
 
     // Auto-scroll to bottom when messages change
     useEffect(() => {
@@ -107,7 +167,7 @@ const FlowiseChatWithAPI = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
-    const createNewChat = () => {
+    const createNewChat = async () => {
         const uniqueId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const sessionId = `session_${uniqueId}`;
         const newChat = {
@@ -117,13 +177,22 @@ const FlowiseChatWithAPI = () => {
             createdAt: new Date(),
             lastMessage: null
         };
+
         setChats(prev => [newChat, ...prev]);
         setActiveChat(newChat.id);
         setMessages(prev => ({ ...prev, [newChat.id]: [] }));
+
+        // Save to backend
+        await saveSingleChat(newChat);
     };
 
-    const deleteChat = (chatId, e) => {
+    const deleteChat = async (chatId, e) => {
         e.stopPropagation();
+        
+        // Delete from backend
+        await deleteChatFromBackend(chatId);
+        
+        // Update local state
         setChats(prev => prev.filter(chat => chat.id !== chatId));
         setMessages(prev => {
             const newMessages = { ...prev };
@@ -135,9 +204,7 @@ const FlowiseChatWithAPI = () => {
             const remainingChats = chats.filter(chat => chat.id !== chatId);
             if (remainingChats.length > 0) {
                 setActiveChat(remainingChats[0].id);
-            } //else {
-                //createNewChat();
-            //}
+            }
         }
     };
 
@@ -175,6 +242,9 @@ const FlowiseChatWithAPI = () => {
             [activeChat]: [...(prev[activeChat] || []), userMessage]
         }));
 
+        // Save user message to backend
+        await addMessageToBackend(activeChat, userMessage);
+
         // Update chat title if it's the first message
         const currentMessages = messages[activeChat] || [];
         if (currentMessages.length === 0) {
@@ -186,7 +256,7 @@ const FlowiseChatWithAPI = () => {
         setIsLoading(true);
 
         try {
-            const response = await fetch(`${API_HOST}/api/v1/prediction/${CHATFLOW_ID}`, {
+            const response = await fetch(`${FLOWISE_API_HOST}/api/v1/prediction/${CHATFLOW_ID}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -195,7 +265,7 @@ const FlowiseChatWithAPI = () => {
                     question: messageText,
                     chatId: currentChat.sessionId,
                     history: currentMessages
-                        .filter(msg => !msg.isUser || msg.text !== messageText) // Exclude the current message
+                        .filter(msg => !msg.isUser || msg.text !== messageText)
                         .map(msg => ({
                             role: msg.isUser ? 'user' : 'assistant',
                             content: msg.text
@@ -223,6 +293,9 @@ const FlowiseChatWithAPI = () => {
                 [activeChat]: [...(prev[activeChat] || []), botMessage]
             }));
 
+            // Save bot message to backend
+            await addMessageToBackend(activeChat, botMessage);
+
             // Update last message in chat list
             setChats(prev => prev.map(chat => 
                 chat.id === activeChat 
@@ -244,6 +317,9 @@ const FlowiseChatWithAPI = () => {
                 ...prev,
                 [activeChat]: [...(prev[activeChat] || []), errorMessage]
             }));
+
+            // Save error message to backend
+            await addMessageToBackend(activeChat, errorMessage);
         } finally {
             setIsLoading(false);
         }
@@ -278,6 +354,18 @@ const FlowiseChatWithAPI = () => {
 
     const currentMessages = messages[activeChat] || [];
 
+    // Show loading screen while fetching chats
+    if (isLoadingChats) {
+        return (
+            <div className="flex h-screen bg-gray-100 items-center justify-center">
+                <div className="text-center">
+                    <Loader size={48} className="mx-auto mb-4 text-blue-600 animate-spin" />
+                    <p className="text-lg text-gray-600">Loading your chats...</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="flex h-screen bg-gray-100">
             {/* Sidebar */}
@@ -287,7 +375,10 @@ const FlowiseChatWithAPI = () => {
                         {/* Sidebar Header */}
                         <div className="p-4 border-b border-gray-200">
                             <div className="flex items-center justify-between mb-4">
-                                <h2 className="text-xl font-semibold text-gray-800">Chat History</h2>
+                                <div>
+                                    <h2 className="text-xl font-semibold text-gray-800">Chat History</h2>
+                                    <p className="text-sm text-gray-500">{email}</p>
+                                </div>
                                 <button
                                     onClick={() => setSidebarOpen(false)}
                                     className="p-1 rounded-md hover:bg-gray-100 text-gray-500"
@@ -306,45 +397,54 @@ const FlowiseChatWithAPI = () => {
 
                         {/* Chat List */}
                         <div className="flex-1 overflow-y-auto">
-                            {chats.map((chat) => (
-                                <div
-                                    key={chat.id}
-                                    onClick={() => selectChat(chat.id)}
-                                    className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
-                                        activeChat === chat.id ? 'bg-blue-50 border-l-4 border-l-blue-600' : ''
-                                    }`}
-                                >
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <MessageCircle size={16} className="text-gray-400 flex-shrink-0" />
-                                                <h3 className="font-medium text-gray-900 truncate">
-                                                    {chat.title}
-                                                </h3>
-                                            </div>
-                                            <div className="flex items-center gap-1 text-xs text-gray-500">
-                                                <Clock size={12} />
-                                                <span>{formatDate(chat.createdAt)}</span>
-                                                <span>•</span>
-                                                <span>{formatTime(chat.createdAt)}</span>
-                                            </div>
-                                            {chat.lastMessage && (
-                                                <p className="text-sm text-gray-600 mt-1 truncate">
-                                                    {chat.lastMessage}
-                                                </p>
-                                            )}
-                                        </div>
-                                        <button
-                                            onClick={(e) => deleteChat(chat.id, e)}
-                                            className="ml-2 p-1 rounded-md hover:bg-red-100 text-gray-400 hover:text-red-600 transition-colors"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
-                                    </div>
+                            {chats.length === 0 ? (
+                                <div className="p-4 text-center text-gray-500">
+                                    <MessageCircle size={32} className="mx-auto mb-2 text-gray-300" />
+                                    <p>No chats yet</p>
+                                    <p className="text-sm">Create your first chat!</p>
                                 </div>
-                            ))}
+                            ) : (
+                                chats.map((chat) => (
+                                    <div
+                                        key={chat.id}
+                                        onClick={() => selectChat(chat.id)}
+                                        className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
+                                            activeChat === chat.id ? 'bg-blue-50 border-l-4 border-l-blue-600' : ''
+                                        }`}
+                                    >
+                                        <div className="flex items-start justify-between">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <MessageCircle size={16} className="text-gray-400 flex-shrink-0" />
+                                                    <h3 className="font-medium text-gray-900 truncate">
+                                                        {chat.title}
+                                                    </h3>
+                                                </div>
+                                                <div className="flex items-center gap-1 text-xs text-gray-500">
+                                                    <Clock size={12} />
+                                                    <span>{formatDate(chat.createdAt)}</span>
+                                                    <span>•</span>
+                                                    <span>{formatTime(chat.createdAt)}</span>
+                                                </div>
+                                                {chat.lastMessage && (
+                                                    <p className="text-sm text-gray-600 mt-1 truncate">
+                                                        {chat.lastMessage}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <button
+                                                onClick={(e) => deleteChat(chat.id, e)}
+                                                className="ml-2 p-1 rounded-md hover:bg-red-100 text-gray-400 hover:text-red-600 transition-colors"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
                         </div>
-                        {/* ✅ Sign Out Button */}
+
+                        {/* Sign Out Button */}
                         <div className="p-4 border-t border-gray-200">
                             <button
                                 onClick={handleSignOut}
@@ -372,10 +472,15 @@ const FlowiseChatWithAPI = () => {
                     )}
                     <div className="flex-1 text-center">
                         <h1 className="text-lg font-semibold text-gray-800">
-                            {activeChat ? chats.find(chat => chat.id === activeChat)?.title : 'Select a Chat'}
+                            {activeChat ? chats.find(chat => chat.id === activeChat)?.title : 'No Chat Selected'}
                         </h1>
+                        {/*activeChat && (
+                            <p className="text-xs text-gray-500 mt-1">
+                                💾 Auto-saves every 30 seconds
+                            </p>
+                        )*/}
                     </div>
-                    <div className="w-10"></div> {/* Spacer for centering */}
+                    <div className="w-10"></div>
                 </div>
 
                 {/* Chat Messages */}
@@ -459,7 +564,9 @@ const FlowiseChatWithAPI = () => {
                         <div className="h-full flex items-center justify-center text-gray-500">
                             <div className="text-center">
                                 <MessageCircle size={48} className="mx-auto mb-4 text-gray-300" />
-                                <p className="text-lg">Select a chat to start messaging</p>
+                                <p className="text-lg">
+                                    {chats.length === 0 ? 'Create your first chat!' : 'Select a chat to start messaging'}
+                                </p>
                             </div>
                         </div>
                     )}
@@ -494,7 +601,7 @@ const FlowiseChatWithAPI = () => {
                         
                         <div className="text-center mt-2">
                             <p className="text-xs text-gray-500">
-                                Press Enter to send, Shift+Enter for new line
+                                Press Enter to send, Shift+Enter for new line • Auto-saved to cloud
                             </p>
                         </div>
                     </div>

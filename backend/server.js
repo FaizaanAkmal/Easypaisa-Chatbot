@@ -3,6 +3,7 @@ import cors from "cors"
 import dotenv from "dotenv"
 import mongoose from "mongoose"
 import userRoute from "./routes/userRoute.js";
+import chatRoute from "./routes/chatRoute.js"
 
 dotenv.config();
 const app = express()
@@ -17,6 +18,7 @@ app.use(cors(corsOptions))
 app.use(express.json());
 
 app.use("/api/user", userRoute);
+app.use('/api/chats', chatRoute);
 
 mongoose
   .connect(process.env.MONGO_URI)
