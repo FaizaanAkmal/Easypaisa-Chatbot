@@ -1,18 +1,21 @@
 import Chat from '../models/chat.js';
 import mongoose from 'mongoose';
+import dotenv from "dotenv"
+
+dotenv.config();
 
 class ChatController {
     // Get all chats for a user
     static async getUserChats(req, res) {
         try {
             const { userEmail } = req.params;
-            
+
             if (!userEmail) {
                 return res.status(400).json({ error: 'User email is required' });
             }
 
             const chats = await Chat.findByUser(userEmail);
-            
+
             // Transform data for frontend
             const transformedChats = chats.map(chat => ({
                 id: chat.id,
@@ -49,7 +52,7 @@ class ChatController {
     static async createChat(req, res) {
         try {
             const { userEmail, chatData } = req.body;
-            
+
             if (!userEmail || !chatData) {
                 return res.status(400).json({ error: 'User email and chat data are required' });
             }
@@ -90,7 +93,7 @@ class ChatController {
         try {
             const { userEmail, chatId } = req.params;
             const { messageData } = req.body;
-            
+
             if (!userEmail || !chatId || !messageData) {
                 return res.status(400).json({ error: 'User email, chat ID, and message data are required' });
             }
@@ -131,7 +134,7 @@ class ChatController {
         try {
             const { userEmail, chatId } = req.params;
             const updates = req.body;
-            
+
             if (!userEmail || !chatId) {
                 return res.status(400).json({ error: 'User email and chat ID are required' });
             }
@@ -171,13 +174,13 @@ class ChatController {
     static async deleteChat(req, res) {
         try {
             const { userEmail, chatId } = req.params;
-            
+
             if (!userEmail || !chatId) {
                 return res.status(400).json({ error: 'User email and chat ID are required' });
             }
 
             const result = await Chat.deleteOne({ userEmail, id: chatId });
-            
+
             if (result.deletedCount === 0) {
                 return res.status(404).json({ error: 'Chat not found' });
             }
@@ -196,7 +199,7 @@ class ChatController {
     static async bulkSave(req, res) {
         try {
             const { userEmail, chats, messages } = req.body;
-            
+
             if (!userEmail || !chats || !messages) {
                 return res.status(400).json({ error: 'User email, chats, and messages are required' });
             }
@@ -250,7 +253,7 @@ class ChatController {
     static async getChatMessages(req, res) {
         try {
             const { userEmail, chatId } = req.params;
-            
+
             if (!userEmail || !chatId) {
                 return res.status(400).json({ error: 'User email and chat ID are required' });
             }
@@ -278,6 +281,35 @@ class ChatController {
             res.status(500).json({ error: 'Failed to fetch messages' });
         }
     }
+
+    static async getPrediction(req, res) {
+        try {
+            const { question, chatId } = req.body; // use body, not params
+            const history = req.body.history || [];
+
+            const response = await fetch(`http://localhost:3000/api/v1/prediction/${process.env.FLOWISE_API_HOST}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    question,
+                    chatId,
+                    history,
+                    overrideConfig: {} // can leave empty for now
+                })
+            });
+
+            const data = await response.json();
+
+            res.json(data);
+        }
+        catch (error) {
+            console.error('Error fetching chat messages:', error);
+            res.status(500).json({ error: error.message });
+        }
+    }
+
 }
 
 export default ChatController;

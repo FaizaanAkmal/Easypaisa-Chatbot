@@ -24,4 +24,6 @@ router.get('/:userEmail/:chatId/messages', ChatController.getChatMessages);
 // POST /api/chats/bulk-save - Bulk save chats and messages (for syncing)
 router.post('/bulk-save', ChatController.bulkSave);
 
+router.post('/predict', ChatController.getPrediction);
+
 export default router;

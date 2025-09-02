@@ -17,9 +17,9 @@ const FlowiseChatWithAPI = () => {
     const email = location.state?.email || 'guest';
 
     // Configuration
-    const CHATFLOW_ID = "503ac61c-f2de-4964-9a7b-d485ae6d574b";
-    const FLOWISE_API_HOST = "http://localhost:3000";
-    const BACKEND_API_HOST = "http://localhost:8000"; // Your backend server
+    const CHATFLOW_ID = "503ac61c-f2de-4964-9a7b-d485ae6d574b"
+    const FLOWISE_API_HOST = "http://localhost:3000"
+    const BACKEND_API_HOST = "http://localhost:8000" // Your backend server
 
     const handleSignOut = async () => {
         try {
@@ -256,7 +256,7 @@ const FlowiseChatWithAPI = () => {
         setIsLoading(true);
 
         try {
-            const response = await fetch(`${FLOWISE_API_HOST}/api/v1/prediction/${CHATFLOW_ID}`, {
+            const response = await fetch(`${BACKEND_API_HOST}/api/chats/predict`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
