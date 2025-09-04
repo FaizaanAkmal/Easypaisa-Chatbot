@@ -86,7 +86,7 @@ export default function AdminDashboard() {
         "metadata",
         JSON.stringify({ uploadedBy: user, filename: file.name })
       );
-      formData.append("replaceExisting", "true");
+      formData.append("replaceExisting", "false");
       formData.append("createNewDocStore", "false");
 
       const res = await fetch(
